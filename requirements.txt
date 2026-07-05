@@ -1,0 +1,11 @@
+# このファイルを .env にコピーして値を入力してください
+# GitHub Actionsで使う場合は、これらをリポジトリの Secrets に登録します（.envは使いません）
+
+# --- WordPress ---
+WP_SITE_URL=https://globalstone.jp
+WP_USER=your_wp_username
+WP_APP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
+
+# --- Instagram Graph API ---
+IG_USER_ID=1234567890123456
+IG_ACCESS_TOKEN=EAAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
