@@ -1,88 +1,26 @@
 #!/usr/bin/env python3
 """
-post_instagram.py
-Instagram Graph API を使い、画像URL + キャプションで投稿を作成・公開する。
-
-事前準備 (README.md 参照):
-  1. Meta for Developers でアプリを作成
-  2. Instagramビジネス/クリエイターアカウントをFacebookページに連携
-  3. 長期アクセストークン (IG_ACCESS_TOKEN) と
-     Instagram Business Account ID (IG_USER_ID) を取得
-  4. .env に設定
-
-Usage:
-    from post_instagram import post_photo
-    post_photo(image_url="https://.../07-02.png", caption="...")
+run_post_instagram.py
+GitHub Actions内で実行する:
+  1. image_url.txt から公開URLを読み込む
+  2. 今日のキャプションを生成
+  3. Instagramに投稿する
 """
-import os
-import time
-import requests
+import sys
+from pathlib import Path
+from datetime import datetime
 
-GRAPH_API_VERSION = "v19.0"
-# Instagramログインによる直接アクセス方式 (IGAA... トークン) は graph.instagram.com を使用する。
-# Facebookページ経由の旧方式 (EAA... トークン) の場合は graph.facebook.com に変更すること。
-GRAPH_API_BASE = f"https://graph.instagram.com/{GRAPH_API_VERSION}"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-IG_USER_ID = os.environ.get("IG_USER_ID", "")
-IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN", "")
+from generate_image import build_caption   # noqa: E402
+from post_instagram import post_photo       # noqa: E402
 
+now = datetime.now()
+caption = build_caption(now.month, now.day)
 
-def _check_container_status(creation_id: str) -> str:
-    url = f"{GRAPH_API_BASE}/{creation_id}"
-    params = {"fields": "status_code", "access_token": IG_ACCESS_TOKEN}
-    resp = requests.get(url, params=params, timeout=30)
-    resp.raise_for_status()
-    return resp.json().get("status_code", "UNKNOWN")
+url_file = Path(__file__).resolve().parent.parent / "image_url.txt"
+with open(url_file) as f:
+    image_url = f.read().strip()
 
-
-def post_photo(image_url: str, caption: str, max_wait_sec: int = 60) -> str:
-    """
-    画像URLとキャプションからInstagram投稿を作成する。
-    戻り値: 公開された投稿のメディアID
-    """
-    if not IG_USER_ID or not IG_ACCESS_TOKEN:
-        raise EnvironmentError("IG_USER_ID / IG_ACCESS_TOKEN が設定されていません")
-
-    # STEP 1: メディアコンテナ作成
-    create_url = f"{GRAPH_API_BASE}/{IG_USER_ID}/media"
-    create_params = {
-        "image_url": image_url,
-        "caption": caption,
-        "access_token": IG_ACCESS_TOKEN,
-    }
-    resp = requests.post(create_url, data=create_params, timeout=60)
-    resp.raise_for_status()
-    creation_id = resp.json()["id"]
-
-    # STEP 2: コンテナの処理完了を待つ
-    waited = 0
-    while waited < max_wait_sec:
-        status = _check_container_status(creation_id)
-        if status == "FINISHED":
-            break
-        if status == "ERROR":
-            raise RuntimeError(f"メディアコンテナ処理エラー: creation_id={creation_id}")
-        time.sleep(3)
-        waited += 3
-    else:
-        raise TimeoutError("メディアコンテナの処理がタイムアウトしました")
-
-    # STEP 3: 公開
-    publish_url = f"{GRAPH_API_BASE}/{IG_USER_ID}/media_publish"
-    publish_params = {
-        "creation_id": creation_id,
-        "access_token": IG_ACCESS_TOKEN,
-    }
-    resp = requests.post(publish_url, data=publish_params, timeout=60)
-    resp.raise_for_status()
-    media_id = resp.json()["id"]
-    return media_id
-
-
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 3:
-        print("Usage: python3 post_instagram.py <image_url> <caption>")
-        sys.exit(1)
-    result = post_photo(sys.argv[1], sys.argv[2])
-    print(f"✅ Instagram投稿完了: media_id={result}")
+media_id = post_photo(image_url=image_url, caption=caption)
+print(f"投稿完了 media_id={media_id}")
