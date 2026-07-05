@@ -6,6 +6,10 @@ on:
     - cron: "0 0 * * *"
   workflow_dispatch: {}   # 手動実行ボタンも使えるようにする
 
+# docs/ フォルダに画像をコミットするための書き込み権限
+permissions:
+  contents: write
+
 jobs:
   post:
     runs-on: ubuntu-latest
@@ -26,11 +30,36 @@ jobs:
       - name: 依存パッケージをインストール
         run: pip install -r requirements.txt
 
-      - name: 本日分の投稿を実行
+      - name: 画像生成 + docs/images/ へコピー
         env:
-          WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
-          WP_USER: ${{ secrets.WP_USER }}
-          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 -c "
+          import sys
+          sys.path.insert(0, 'scripts')
+          from generate_image import generate
+          from host_via_github import host_image
+          from datetime import datetime
+          now = datetime.now()
+          path = generate(now.month, now.day)
+          url = host_image(str(path))
+          print('IMAGE_URL=' + url)
+          with open('image_url.txt', 'w') as f:
+              f.write(url)
+          "
+
+      - name: 生成画像をコミット&プッシュ
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/images/
+          git commit -m "chore: 本日分の投稿画像を追加" || echo "変更なし"
+          git push
+
+      - name: GitHub Pagesの反映を待つ
+        run: sleep 60
+
+      - name: Instagramへ投稿
+        env:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
-          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
-        run: python3 main.py
+          IG_ACCESS_TOKEN: ${{
