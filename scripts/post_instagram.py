@@ -51,3 +51,45 @@ def post_photo(image_url: str, caption: str, max_wait_sec: int = 60) -> str:
         "access_token": IG_ACCESS_TOKEN,
     }
     resp = requests.post(create_url, data=create_params, timeout=60)
+    print(f"[DEBUG] create container status_code={resp.status_code}")
+    print(f"[DEBUG] create container response={resp.text}")
+    resp.raise_for_status()
+    creation_id = resp.json()["id"]
+    print(f"[DEBUG] creation_id={creation_id}")
+
+    # STEP 2: コンテナの処理完了を待つ
+    waited = 0
+    while waited < max_wait_sec:
+        status = _check_container_status(creation_id)
+        print(f"[DEBUG] container status={status} (waited={waited}s)")
+        if status == "FINISHED":
+            break
+        if status == "ERROR":
+            raise RuntimeError(f"メディアコンテナ処理エラー: creation_id={creation_id}")
+        time.sleep(3)
+        waited += 3
+    else:
+        raise TimeoutError("メディアコンテナの処理がタイムアウトしました")
+
+    # STEP 3: 公開
+    publish_url = f"{GRAPH_API_BASE}/{IG_USER_ID}/media_publish"
+    publish_params = {
+        "creation_id": creation_id,
+        "access_token": IG_ACCESS_TOKEN,
+    }
+    resp = requests.post(publish_url, data=publish_params, timeout=60)
+    print(f"[DEBUG] publish status_code={resp.status_code}")
+    print(f"[DEBUG] publish response={resp.text}")
+    resp.raise_for_status()
+    media_id = resp.json().get("id")
+    print(f"[DEBUG] final media_id={media_id}")
+    return media_id
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 3:
+        print("Usage: python3 post_instagram.py <image_url> <caption>")
+        sys.exit(1)
+    result = post_photo(sys.argv[1], sys.argv[2])
+    print(f"✅ Instagram投稿完了: media_id={result}")
