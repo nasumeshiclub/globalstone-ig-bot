@@ -1,26 +1,53 @@
 #!/usr/bin/env python3
 """
-run_post_instagram.py
-GitHub Actions内で実行する:
-  1. image_url.txt から公開URLを読み込む
-  2. 今日のキャプションを生成
-  3. Instagramに投稿する
+post_instagram.py
+Instagram Graph API を使い、画像URL + キャプションで投稿を作成・公開する。
+
+事前準備 (README.md 参照):
+  1. Meta for Developers でアプリを作成
+  2. Instagramビジネス/クリエイターアカウントをFacebookページに連携
+  3. 長期アクセストークン (IG_ACCESS_TOKEN) と
+     Instagram Business Account ID (IG_USER_ID) を取得
+  4. .env に設定
+
+Usage:
+    from post_instagram import post_photo
+    post_photo(image_url="https://.../07-02.png", caption="...")
 """
-import sys
-from pathlib import Path
-from datetime import datetime
+import os
+import time
+import requests
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+GRAPH_API_VERSION = "v19.0"
+# Instagramログインによる直接アクセス方式 (IGAA... トークン) は graph.instagram.com を使用する。
+# Facebookページ経由の旧方式 (EAA... トークン) の場合は graph.facebook.com に変更すること。
+GRAPH_API_BASE = f"https://graph.instagram.com/{GRAPH_API_VERSION}"
 
-from generate_image import build_caption   # noqa: E402
-from post_instagram import post_photo       # noqa: E402
+IG_USER_ID = os.environ.get("IG_USER_ID", "")
+IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN", "")
 
-now = datetime.now()
-caption = build_caption(now.month, now.day)
 
-url_file = Path(__file__).resolve().parent.parent / "image_url.txt"
-with open(url_file) as f:
-    image_url = f.read().strip()
+def _check_container_status(creation_id: str) -> str:
+    url = f"{GRAPH_API_BASE}/{creation_id}"
+    params = {"fields": "status_code", "access_token": IG_ACCESS_TOKEN}
+    resp = requests.get(url, params=params, timeout=30)
+    resp.raise_for_status()
+    return resp.json().get("status_code", "UNKNOWN")
 
-media_id = post_photo(image_url=image_url, caption=caption)
-print(f"投稿完了 media_id={media_id}")
+
+def post_photo(image_url: str, caption: str, max_wait_sec: int = 60) -> str:
+    """
+    画像URLとキャプションからInstagram投稿を作成する。
+    戻り値: 公開された投稿のメディアID
+    """
+    if not IG_USER_ID or not IG_ACCESS_TOKEN:
+        raise EnvironmentError("IG_USER_ID / IG_ACCESS_TOKEN が設定されていません")
+
+    # STEP 1: メディアコンテナ作成
+    create_url = f"{GRAPH_API_BASE}/{IG_USER_ID}/media"
+    create_params = {
+        "image_url": image_url,
+        "caption": caption,
+        "access_token": IG_ACCESS_TOKEN,
+    }
+    resp = requests.post(create_url, data=create_params, timeout=60)
