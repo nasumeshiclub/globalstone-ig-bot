@@ -22,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / "scripts"))
 
 from generate_image import generate, build_caption          # noqa: E402
-from upload_to_wordpress import upload_image                 # noqa: E402
+from host_via_github import host_image                       # noqa: E402
 from post_instagram import post_photo                         # noqa: E402
 
 
@@ -40,9 +40,12 @@ def run(month: int, day: int, dry_run: bool = False):
         print(caption)
         return
 
-    # STEP 3: WordPressへアップロード
-    image_url = upload_image(str(image_path))
-    print(f"[2/3] WordPressアップロード完了: {image_url}")
+    # STEP 3: GitHub Pages用フォルダにコピー（このあとGit側でcommit&pushが必要）
+    image_url = host_image(str(image_path))
+    print(f"[2/3] GitHub Pages公開URL: {image_url}")
+    print("      ※ このURLが実際にアクセス可能になるまで、コミット後 数十秒〜1分ほど待ちます")
+    import time
+    time.sleep(45)
 
     # STEP 4: Instagramへ投稿
     media_id = post_photo(image_url=image_url, caption=caption)
