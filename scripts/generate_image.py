@@ -13,6 +13,7 @@ import textwrap
 from datetime import datetime
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
+from day_highlights import get_highlight
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_PATH = BASE_DIR / "data" / "all_366_days.json"
@@ -186,6 +187,15 @@ def build_caption(month: int, day: int) -> str:
         f"✨石言葉：{data['word']}",
         f"📍主な産地：{data['origin']}",
         f"🎨誕生色：{data['color_name']}",
+    ]
+
+    highlight = get_highlight(month, day)
+    if highlight:
+        lines.append("")
+        lines.append(f"👤 今日生まれ：{highlight['person']}")
+        lines.append(f"📅 今日は「{highlight['event']}」")
+
+    lines += [
         "",
         f"詳しい意味・浄化方法・本物の見分け方はプロフィールのリンクから",
         "",
